@@ -4,66 +4,60 @@ import statistics
 import time
 from typing import List, Dict, Any
 
-# Importa as funções 'main' dos outros arquivos
-# Renomeamos para clareza
 try:
-    from coroutines import main as run_cooperative
-    from threads import main as run_preemptive
+    from coroutines import main as run_coroutines
+    from threads import main as run_threads
 except ImportError:
-    print("Erro: Verifique se os arquivos 'produtor_consumidor_cooperativo.py' e 'produtor_consumidor_preemptivo.py' estão no mesmo diretório.")
     exit(1)
 
-# --- Configuração dos Testes ---
-
-# Quantas vezes repetir cada cenário (como pedido no trabalho)
 REPETICOES = 5
 
-# Definição dos cenários de teste (as "entradas" que você pediu)
+buffer_1 = 5; produtor_1 = 3; consumidor_1 = 3; itens_1 = 20;
+buffer_2 = 2; produtor_2 = 10; consumidor_2 = 10; itens_2 = 50;
+buffer_3 = 50; produtor_3 = 5; consumidor_3 = 5; itens_3 = 200;
+buffer_4 = 10; produtor_4 = 50; consumidor_4 = 50; itens_4 = 10;
+buffer_5 = 10; produtor_5 = 20; consumidor_5 = 5; itens_5 = 50;
+buffer_6 = 10; produtor_6 = 5; consumidor_6 = 20; itens_6 = 50;
+
 CENARIOS = [
     {
-        "nome": "1. Base (Pouca Carga)",
-        "params": {"buffer_size": 5, "producer_count": 3, "consumer_count": 3, "items_per_producer": 20}
+        "nome": "1",
+        "params": {"tamanho_buffer": buffer_1, "num_produtor": produtor_1, "num_consumidor": consumidor_1, "itens_produtor": itens_1}
     },
     {
-        "nome": "2. Alta Contenção (Buffer Pequeno)",
-        "params": {"buffer_size": 2, "producer_count": 10, "consumer_count": 10, "items_per_producer": 50}
+        "nome": "2",
+        "params": {"tamanho_buffer": buffer_2, "num_produtor": produtor_2, "num_consumidor": consumidor_2, "itens_produtor": itens_2}
     },
     {
-        "nome": "3. Alta Vazão (Muitos Itens)",
-        "params": {"buffer_size": 50, "producer_count": 5, "consumer_count": 5, "items_per_producer": 200}
+        "nome": "3",
+        "params": {"tamanho_buffer": buffer_3, "num_produtor": produtor_3, "num_consumidor": consumidor_3, "itens_produtor": itens_3}
     },
     {
-        "nome": "4. Muitas Tarefas (Simulando I/O)",
-        "params": {"buffer_size": 10, "producer_count": 50, "consumer_count": 50, "items_per_producer": 10}
+        "nome": "4",
+        "params": {"tamanho_buffer": buffer_4, "num_produtor": produtor_4, "num_consumidor": consumidor_4, "itens_produtor": itens_4}
     },
     {
-        "nome": "5. Dominado por Produtores",
-        "params": {"buffer_size": 10, "producer_count": 20, "consumer_count": 5, "items_per_producer": 50}
+        "nome": "5",
+        "params": {"tamanho_buffer": buffer_5, "num_produtor": produtor_5, "num_consumidor": consumidor_5, "itens_produtor": itens_5}
     },
     {
-        "nome": "6. Dominado por Consumidores",
-        "params": {"buffer_size": 10, "producer_count": 5, "consumer_count": 20, "items_per_producer": 50}
+        "nome": "6",
+        "params": {"tamanho_buffer": buffer_6, "num_produtor": produtor_6, "num_consumidor": consumidor_6, "itens_produtor": itens_6}
     },
 ]
 
-# --- Funções de Execução ---
-
 async def run_benchmark() -> List[Dict[str, Any]]:
-    """
-    Executa todos os cenários para ambas as implementações.
-    """
     final_results = []
 
     for cenario in CENARIOS:
         nome_cenario = cenario["nome"]
         params = cenario["params"]
-        print(f"\n--- Executando Cenário: {nome_cenario} ---")
+        print(f"\nexecutando cenario: {nome_cenario}")
         
-        # --- Versão Cooperativa (Asyncio) ---
-        print(f"Testando Cooperativo (asyncio)...")
+        print(f"rodando implementacao com corrotinas")
         coop_times = []
         for i in range(REPETICOES):
-            t = await run_cooperative(**params)
+            t = await run_coroutines(**params)
             coop_times.append(t)
             print(f"  Run {i+1}/{REPETICOES}: {t:.4f}s")
         
@@ -72,18 +66,17 @@ async def run_benchmark() -> List[Dict[str, Any]]:
         
         final_results.append({
             "cenario": nome_cenario,
-            "implementacao": "Cooperativa (asyncio)",
+            "implementacao": "corrotinas",
             **params,
             "tempo_medio": coop_mean,
             "desvio_padrao": coop_stdev,
             "runs_individuais": str([round(t, 4) for t in coop_times])
         })
 
-        # --- Versão Preemptiva (Threading) ---
-        print(f"Testando Preemptivo (threading)...")
+        print(f"rodando implementacao com threads")
         preempt_times = []
         for i in range(REPETICOES):
-            t = run_preemptive(**params)
+            t = run_threads(**params)
             preempt_times.append(t)
             print(f"  Run {i+1}/{REPETICOES}: {t:.4f}s")
 
@@ -92,7 +85,7 @@ async def run_benchmark() -> List[Dict[str, Any]]:
         
         final_results.append({
             "cenario": nome_cenario,
-            "implementacao": "Preemptiva (threading)",
+            "implementacao": "threads",
             **params,
             "tempo_medio": preempt_mean,
             "desvio_padrao": preempt_stdev,
@@ -102,14 +95,10 @@ async def run_benchmark() -> List[Dict[str, Any]]:
     return final_results
 
 def save_results_to_csv(results: List[Dict[str, Any]], filename: str):
-    """
-    Salva a lista de resultados em um arquivo CSV.
-    """
     if not results:
         print("Nenhum resultado para salvar.")
         return
-
-    # Pega os cabeçalhos do primeiro resultado
+    
     headers = results[0].keys()
     
     try:
@@ -122,17 +111,14 @@ def save_results_to_csv(results: List[Dict[str, Any]], filename: str):
     except IOError as e:
         print(f"Erro ao salvar CSV: {e}")
 
-# --- Ponto de Entrada Principal ---
 if __name__ == "__main__":
     print("Iniciando Benchmark de Concorrência (Asyncio vs Threading)")
     print(f"Repetições por cenário: {REPETICOES}")
     
     start_total = time.perf_counter()
     
-    # Executa o benchmark
     all_results = asyncio.run(run_benchmark())
-    
-    # Salva os resultados
+
     save_results_to_csv(all_results, "resultados_benchmark.csv")
     
     end_total = time.perf_counter()

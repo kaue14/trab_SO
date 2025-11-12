@@ -1,67 +1,76 @@
-import asyncio
+import threading
+import queue  # Fila 'thread-safe'
 import random
 import time
 
-# --- O Produtor (Corrotina) ---
-async def producer(name: str, queue: asyncio.Queue, items_to_produce: int):
+# --- O Produtor (Função de Thread) ---
+def producer(name: str, q: queue.Queue, items_to_produce: int):
     """
-    Uma corrotina que produz itens e os coloca na fila.
+    Uma função que roda em um thread, produz itens e os coloca na fila.
     """
-    # print(f"[Produtor {name}] Iniciado.") # Removido para limpar a saída do benchmark
+    # print(f"[Produtor {name}] Iniciado.")
     for i in range(items_to_produce):
-        await asyncio.sleep(random.uniform(0.001, 0.01)) # Simula I/O rápido
+        time.sleep(random.uniform(0.001, 0.01)) # Simula I/O rápido
         item = f"Item {i} (de {name})"
-        await queue.put(item)
+        q.put(item)
         # print(f"[Produtor {name}] -> Produziu: {item}")
         
     # print(f"[Produtor {name}] Concluído.")
 
-# --- O Consumidor (Corrotina) ---
-async def consumer(name: str, queue: asyncio.Queue):
+# --- O Consumidor (Função de Thread) ---
+def consumer(name: str, q: queue.Queue):
     """
-    Uma corrotina que consome itens da fila.
+    Uma função que roda em um thread e consome itens da fila.
     """
     # print(f"[Consumidor {name}] Iniciado. Aguardando itens...")
     while True:
-        item = await queue.get()
-        await asyncio.sleep(random.uniform(0.001, 0.02)) # Simula processamento rápido
+        item = q.get()
+        if item is None: # Sinal de parada
+            q.task_done()
+            break
+            
+        time.sleep(random.uniform(0.001, 0.02)) # Simula processamento rápido
         # print(f"[Consumidor {name}] <-- Consumiu: {item}")
-        queue.task_done()
+        q.task_done()
 
-# --- A Rotina Principal (Orquestrador) ---
-async def main(buffer_size: int, producer_count: int, consumer_count: int, items_per_producer: int):
+# --- A Rotina Principal (Thread Principal) ---
+def main(buffer_size: int, producer_count: int, consumer_count: int, items_per_producer: int):
     """
-    Configura e executa o loop de eventos principal.
+    Configura e executa os threads.
     Retorna o tempo total de execução.
     """
-    queue = asyncio.Queue(maxsize=buffer_size)
-    producer_tasks = []
-    consumer_tasks = []
+    q = queue.Queue(maxsize=buffer_size)
+    producer_threads = []
+    consumer_threads = []
 
     start_time = time.perf_counter()
 
-    # Cria as tarefas (tasks) dos produtores
+    # Cria e inicia os threads dos produtores
     for i in range(producer_count):
-        task = asyncio.create_task(producer(f"P-{i}", queue, items_per_producer))
-        producer_tasks.append(task)
+        thread = threading.Thread(target=producer, args=(f"P-{i}", q, items_per_producer))
+        thread.start()
+        producer_threads.append(thread)
 
-    # Cria as tarefas (tasks) dos consumidores
+    # Cria e inicia os threads dos consumidores
     for i in range(consumer_count):
-        task = asyncio.create_task(consumer(f"C-{i}", queue))
-        consumer_tasks.append(task)
+        thread = threading.Thread(target=consumer, args=(f"C-{i}", q))
+        thread.start()
+        consumer_threads.append(thread)
 
     # 1. Espera todos os produtores terminarem
-    await asyncio.gather(*producer_tasks)
+    for thread in producer_threads:
+        thread.join()
 
     # 2. Espera a fila ficar vazia
-    await queue.join()
+    q.join()
 
-    # 3. Cancela as tarefas dos consumidores
-    for task in consumer_tasks:
-        task.cancel()
+    # 3. Envia sinal de parada para os consumidores
+    for _ in range(consumer_count):
+        q.put(None)
 
-    # Espera os cancelamentos serem processados
-    await asyncio.gather(*consumer_tasks, return_exceptions=True)
+    # 4. Espera os consumidores terminarem
+    for thread in consumer_threads:
+        thread.join()
 
     end_time = time.perf_counter()
     return end_time - start_time
@@ -73,7 +82,7 @@ if __name__ == "__main__":
     PRODUCER_COUNT = 3
     CONSUMER_COUNT = 3
     ITEMS_PER_PRODUCER = 10
-    
-    print("Executando versão Cooperativa (asyncio) manualmente...")
-    total_time = asyncio.run(main(BUFFER_SIZE, PRODUCER_COUNT, CONSUMER_COUNT, ITEMS_PER_PRODUCER))
+
+    print("Executando versão Preemptiva (threading) manualmente...")
+    total_time = main(BUFFER_SIZE, PRODUCER_COUNT, CONSUMER_COUNT, ITEMS_PER_PRODUCER)
     print(f"Tempo total (manual): {total_time:.4f} segundos")
