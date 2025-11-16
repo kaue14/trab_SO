@@ -1,88 +1,78 @@
 import threading
-import queue  # Fila 'thread-safe'
 import random
 import time
+import collections
 
-# --- O Produtor (Função de Thread) ---
-def producer(name: str, q: queue.Queue, items_to_produce: int):
-    """
-    Uma função que roda em um thread, produz itens e os coloca na fila.
-    """
-    # print(f"[Produtor {name}] Iniciado.")
+def produz(valor: int, buffer: collections.deque):
+    buffer.append(valor)
+
+def produtor(name: str, 
+             buffer: collections.deque, 
+             lock: threading.Lock, 
+             empty_sem: threading.Semaphore, 
+             full_sem: threading.Semaphore, 
+             items_to_produce: int):
+
     for i in range(items_to_produce):
-        time.sleep(random.uniform(0.001, 0.01)) # Simula I/O rápido
         item = f"Item {i} (de {name})"
-        q.put(item)
-        # print(f"[Produtor {name}] -> Produziu: {item}")
+        empty_sem.acquire()
+        lock.acquire()
+        produz(item, buffer)
+        lock.release()
+        full_sem.release()
         
-    # print(f"[Produtor {name}] Concluído.")
+def consome(buffer: collections.deque):
+    return buffer.popleft()
 
-# --- O Consumidor (Função de Thread) ---
-def consumer(name: str, q: queue.Queue):
-    """
-    Uma função que roda em um thread e consome itens da fila.
-    """
-    # print(f"[Consumidor {name}] Iniciado. Aguardando itens...")
+def consumidor(name: str, 
+             buffer: collections.deque, 
+             lock: threading.Lock, 
+             empty_sem: threading.Semaphore, 
+             full_sem: threading.Semaphore):
+
     while True:
-        item = q.get()
-        if item is None: # Sinal de parada
-            q.task_done()
+        full_sem.acquire()
+        lock.acquire()
+        item = consome(buffer)
+        lock.release()
+        empty_sem.release()
+        
+        if item is None:
             break
-            
-        time.sleep(random.uniform(0.001, 0.02)) # Simula processamento rápido
-        # print(f"[Consumidor {name}] <-- Consumiu: {item}")
-        q.task_done()
 
-# --- A Rotina Principal (Thread Principal) ---
-def main(buffer_size: int, producer_count: int, consumer_count: int, items_per_producer: int):
-    """
-    Configura e executa os threads.
-    Retorna o tempo total de execução.
-    """
-    q = queue.Queue(maxsize=buffer_size)
-    producer_threads = []
-    consumer_threads = []
+def main(tamanho_buffer: int, num_produtor: int, num_consumidor: int, itens_produtor: int):
+    buffer = collections.deque(maxlen=tamanho_buffer) 
+    empty_sem = threading.Semaphore(tamanho_buffer)
+    full_sem = threading.Semaphore(0)
+    lock = threading.Lock()
+    
+    produtor_threads = []
+    consumidor_threads = []
 
     start_time = time.perf_counter()
 
-    # Cria e inicia os threads dos produtores
-    for i in range(producer_count):
-        thread = threading.Thread(target=producer, args=(f"P-{i}", q, items_per_producer))
+    for i in range(num_produtor):
+        thread = threading.Thread(target=produtor, args=(f"P-{i}", buffer, lock, empty_sem, full_sem, itens_produtor))
         thread.start()
-        producer_threads.append(thread)
+        produtor_threads.append(thread)
 
-    # Cria e inicia os threads dos consumidores
-    for i in range(consumer_count):
-        thread = threading.Thread(target=consumer, args=(f"C-{i}", q))
+    for i in range(num_consumidor):
+        thread = threading.Thread(target=consumidor, args=(f"C-{i}", buffer, lock, empty_sem, full_sem))
         thread.start()
-        consumer_threads.append(thread)
+        consumidor_threads.append(thread)
 
-    # 1. Espera todos os produtores terminarem
-    for thread in producer_threads:
+    for thread in produtor_threads:
         thread.join()
 
-    # 2. Espera a fila ficar vazia
-    q.join()
+    for _ in range(num_consumidor):
+        empty_sem.acquire()
+        lock.acquire()
+        produz(None, buffer)
+        lock.release()
+        full_sem.release()
 
-    # 3. Envia sinal de parada para os consumidores
-    for _ in range(consumer_count):
-        q.put(None)
-
-    # 4. Espera os consumidores terminarem
-    for thread in consumer_threads:
+    for thread in consumidor_threads:
         thread.join()
 
     end_time = time.perf_counter()
     return end_time - start_time
-
-# --- Ponto de Entrada (para execução manual) ---
-if __name__ == "__main__":
-    # Configurações padrão para teste manual
-    BUFFER_SIZE = 5
-    PRODUCER_COUNT = 3
-    CONSUMER_COUNT = 3
-    ITEMS_PER_PRODUCER = 10
-
-    print("Executando versão Preemptiva (threading) manualmente...")
-    total_time = main(BUFFER_SIZE, PRODUCER_COUNT, CONSUMER_COUNT, ITEMS_PER_PRODUCER)
-    print(f"Tempo total (manual): {total_time:.4f} segundos")

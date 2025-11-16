@@ -47,7 +47,7 @@ CENARIOS = [
 ]
 
 async def run_benchmark() -> List[Dict[str, Any]]:
-    final_results = []
+    resultados_finais = []
 
     for cenario in CENARIOS:
         nome_cenario = cenario["nome"]
@@ -64,7 +64,7 @@ async def run_benchmark() -> List[Dict[str, Any]]:
         coop_mean = statistics.mean(coop_times)
         coop_stdev = statistics.stdev(coop_times) if REPETICOES > 1 else 0.0
         
-        final_results.append({
+        resultados_finais.append({
             "cenario": nome_cenario,
             "implementacao": "corrotinas",
             **params,
@@ -83,7 +83,7 @@ async def run_benchmark() -> List[Dict[str, Any]]:
         preempt_mean = statistics.mean(preempt_times)
         preempt_stdev = statistics.stdev(preempt_times) if REPETICOES > 1 else 0.0
         
-        final_results.append({
+        resultados_finais.append({
             "cenario": nome_cenario,
             "implementacao": "threads",
             **params,
@@ -92,13 +92,9 @@ async def run_benchmark() -> List[Dict[str, Any]]:
             "runs_individuais": str([round(t, 4) for t in preempt_times])
         })
     
-    return final_results
+    return resultados_finais
 
 def save_results_to_csv(results: List[Dict[str, Any]], filename: str):
-    if not results:
-        print("Nenhum resultado para salvar.")
-        return
-    
     headers = results[0].keys()
     
     try:
@@ -107,19 +103,16 @@ def save_results_to_csv(results: List[Dict[str, Any]], filename: str):
             writer.writeheader()
             for row in results:
                 writer.writerow(row)
-        print(f"\nResultados salvos com sucesso em: {filename}")
+        print(f"\nResultados salvos em: {filename}")
     except IOError as e:
         print(f"Erro ao salvar CSV: {e}")
 
 if __name__ == "__main__":
-    print("Iniciando Benchmark de Concorrência (Asyncio vs Threading)")
-    print(f"Repetições por cenário: {REPETICOES}")
-    
     start_total = time.perf_counter()
-    
-    all_results = asyncio.run(run_benchmark())
 
-    save_results_to_csv(all_results, "resultados_benchmark.csv")
+    resultados = asyncio.run(run_benchmark())
+
+    save_results_to_csv(resultados, "resultados_benchmark.csv")
     
     end_total = time.perf_counter()
-    print(f"\nBenchmark total concluído em {end_total - start_total:.2f} segundos.")
+    print(f"\nConcluido\ntempo total: {end_total - start_total:.2f} segundos.")
