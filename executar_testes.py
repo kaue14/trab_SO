@@ -12,37 +12,30 @@ except ImportError:
 
 REPETICOES = 5
 
-buffer_1 = 5; produtor_1 = 3; consumidor_1 = 3; itens_1 = 20;
-buffer_2 = 2; produtor_2 = 10; consumidor_2 = 10; itens_2 = 50;
-buffer_3 = 50; produtor_3 = 5; consumidor_3 = 5; itens_3 = 200;
-buffer_4 = 10; produtor_4 = 50; consumidor_4 = 50; itens_4 = 10;
-buffer_5 = 10; produtor_5 = 20; consumidor_5 = 5; itens_5 = 50;
-buffer_6 = 10; produtor_6 = 5; consumidor_6 = 20; itens_6 = 50;
-
 CENARIOS = [
     {
         "nome": "1",
-        "params": {"tamanho_buffer": buffer_1, "num_produtor": produtor_1, "num_consumidor": consumidor_1, "itens_produtor": itens_1}
+        "params": {"tamanho_buffer": 5, "num_produtor": 3, "num_consumidor": 3, "itens_produtor": 20}
     },
     {
         "nome": "2",
-        "params": {"tamanho_buffer": buffer_2, "num_produtor": produtor_2, "num_consumidor": consumidor_2, "itens_produtor": itens_2}
+        "params": {"tamanho_buffer": 2, "num_produtor": 10, "num_consumidor": 10, "itens_produtor": 50}
     },
     {
         "nome": "3",
-        "params": {"tamanho_buffer": buffer_3, "num_produtor": produtor_3, "num_consumidor": consumidor_3, "itens_produtor": itens_3}
+        "params": {"tamanho_buffer": 50, "num_produtor": 5, "num_consumidor": 5, "itens_produtor": 200}
     },
     {
         "nome": "4",
-        "params": {"tamanho_buffer": buffer_4, "num_produtor": produtor_4, "num_consumidor": consumidor_4, "itens_produtor": itens_4}
+        "params": {"tamanho_buffer": 10, "num_produtor": 50, "num_consumidor": 50, "itens_produtor": 10}
     },
     {
         "nome": "5",
-        "params": {"tamanho_buffer": buffer_5, "num_produtor": produtor_5, "num_consumidor": consumidor_5, "itens_produtor": itens_5}
+        "params": {"tamanho_buffer": 10, "num_produtor": 20, "num_consumidor": 5, "itens_produtor": 50}
     },
     {
         "nome": "6",
-        "params": {"tamanho_buffer": buffer_6, "num_produtor": produtor_6, "num_consumidor": consumidor_6, "itens_produtor": itens_6}
+        "params": {"tamanho_buffer": 10, "num_produtor": 5, "num_consumidor": 20, "itens_produtor": 50}
     },
 ]
 
@@ -52,9 +45,12 @@ async def run_benchmark() -> List[Dict[str, Any]]:
     for cenario in CENARIOS:
         nome_cenario = cenario["nome"]
         params = cenario["params"]
-        print(f"\nexecutando cenario: {nome_cenario}")
         
-        print(f"rodando implementacao com corrotinas")
+        print(f"\n--- Executando Cenário: {nome_cenario} ---")
+        print(f"  Buffer: {params['tamanho_buffer']}, Produtores: {params['num_produtor']}, "
+              f"Consumidores: {params['num_consumidor']}, Itens/Produtor: {params['itens_produtor']}")
+        
+        print(f"Rodando implementacao com corrotinas...")
         coop_times = []
         for i in range(REPETICOES):
             t = await run_coroutines(**params)
@@ -64,16 +60,17 @@ async def run_benchmark() -> List[Dict[str, Any]]:
         coop_mean = statistics.mean(coop_times)
         coop_stdev = statistics.stdev(coop_times) if REPETICOES > 1 else 0.0
         
+        # Adiciona os parâmetros ao resultado para o CSV
         resultados_finais.append({
             "cenario": nome_cenario,
             "implementacao": "corrotinas",
-            **params,
+            **params, # Desempacota o dicionário de parâmetros aqui
             "tempo_medio": coop_mean,
             "desvio_padrao": coop_stdev,
             "runs_individuais": str([round(t, 4) for t in coop_times])
         })
 
-        print(f"rodando implementacao com threads")
+        print(f"Rodando implementacao com threads...")
         preempt_times = []
         for i in range(REPETICOES):
             t = run_threads(**params)
@@ -108,11 +105,11 @@ def save_results_to_csv(results: List[Dict[str, Any]], filename: str):
         print(f"Erro ao salvar CSV: {e}")
 
 if __name__ == "__main__":
-    start_total = time.perf_counter()
-
-    resultados = asyncio.run(run_benchmark())
-
-    save_results_to_csv(resultados, "resultados_benchmark.csv")
+    print("Iniciando Benchmark de Concorrência (Asyncio vs Threading)")
+    print(f"Repetições por cenário: {REPETICOES}")
     
+    start_total = time.perf_counter()
+    resultados = asyncio.run(run_benchmark())
+    save_results_to_csv(resultados, "resultados_benchmark.csv")
     end_total = time.perf_counter()
     print(f"\nConcluido\ntempo total: {end_total - start_total:.2f} segundos.")

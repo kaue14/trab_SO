@@ -14,6 +14,8 @@ def produtor(name: str,
              items_to_produce: int):
 
     for i in range(items_to_produce):
+        time.sleep(random.uniform(0.001, 0.01)) 
+        
         item = f"Item {i} (de {name})"
         empty_sem.acquire()
         lock.acquire()
@@ -39,6 +41,7 @@ def consumidor(name: str,
         
         if item is None:
             break
+        time.sleep(random.uniform(0.001, 0.02))
 
 def main(tamanho_buffer: int, num_produtor: int, num_consumidor: int, itens_produtor: int):
     buffer = collections.deque(maxlen=tamanho_buffer) 
