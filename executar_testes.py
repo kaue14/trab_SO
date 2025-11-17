@@ -105,11 +105,11 @@ def save_results_to_csv(results: List[Dict[str, Any]], filename: str):
         print(f"Erro ao salvar CSV: {e}")
 
 if __name__ == "__main__":
-    print("Iniciando Benchmark de Concorrência (Asyncio vs Threading)")
     print(f"Repetições por cenário: {REPETICOES}")
     
     start_total = time.perf_counter()
     resultados = asyncio.run(run_benchmark())
     save_results_to_csv(resultados, "resultados_benchmark.csv")
     end_total = time.perf_counter()
+
     print(f"\nConcluido\ntempo total: {end_total - start_total:.2f} segundos.")
